@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { GOLD_TOKEN_ABI, GOLDTOKEN_CONTRACT_ADDRESS } from "@/helper/contracts";
+import { GOLD_PRICE_ORACLE_ABI, GOLD_TOKEN_ABI, GOLDPRICE_CONTRACT_ADDRESS, GOLDTOKEN_CONTRACT_ADDRESS } from "@/helper/contracts";
 import { parseEther, formatEther } from "viem";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 // --- Main Page Component ---
@@ -21,22 +21,22 @@ export default function Home() {
       ) : (
         <main className="main-grid">
           <ContractData />
-          <WalletInfo address={address!} />
-          <UserActions />
+          <WalletInfo address={address as `0x${string}`} />
           <CustodianActions />
+          <WithDrawGold address={address as `0x${string}`} />
         </main>
       )}
     </div>
   );
 }
 
-// --- Child Components ---
+// Components
 
 function ContractData() {
   const { data: goldPrice } = useReadContract({
-    address: GOLDTOKEN_CONTRACT_ADDRESS,
-    abi: GOLD_TOKEN_ABI,
-    functionName: "getLatestGoldPrice",
+    address: GOLDPRICE_CONTRACT_ADDRESS,
+    abi: GOLD_PRICE_ORACLE_ABI,
+    functionName: "getLatestPrice",
   });
 
   const { data: totalSupply } = useReadContract({
@@ -57,6 +57,44 @@ function ContractData() {
   );
 }
 
+function WithDrawGold({ address }: { address: `0x${string}` }){
+  const { data: hash, writeContract, isPending } = useWriteContract();
+  const [amount, setAmount] = useState("");
+
+  async function withdrawGold() {
+    if (!address) return alert("Please connect your wallet.");
+    writeContract({
+      address: GOLDTOKEN_CONTRACT_ADDRESS,
+      abi: GOLD_TOKEN_ABI,
+      functionName: 'withdraw',
+      args: [amount],
+    });
+
+  }
+
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+
+  return (
+    <div className="card">
+      <h2>Withdraw Gold</h2>
+      <input
+        type="number"
+        placeholder="Amount to Withdraw"
+        value={parseInt(amount)/1e18}
+        onChange={(e) => setAmount(String(parseInt(e.target.value)*1e18))}
+        required
+      />
+      <button onClick={withdrawGold} disabled={isPending}>
+        {isPending ? 'Confirming...' : 'Withdraw Gold'}
+      </button>
+      {hash && <p>Transaction Hash: {hash.slice(0,10)}...</p>}
+      {isConfirming && <p>Waiting for confirmation...</p>}
+      {isConfirmed && <p>Transaction confirmed!</p>}
+    </div>
+  );
+
+}
+
 function WalletInfo({ address }: { address: `0x${string}` }) {
   const { data: balance } = useReadContract({
     address: GOLDTOKEN_CONTRACT_ADDRESS,
@@ -74,53 +112,6 @@ function WalletInfo({ address }: { address: `0x${string}` }) {
       <p><strong>Your GLD Balance:</strong> {formattedBalance}</p>
     </div>
   );
-}
-
-function UserActions() {
-    const [recipient, setRecipient] = useState("");
-    const [amount, setAmount] = useState("");
-    const { data: hash, writeContract, isPending } = useWriteContract();
-
-    async function submit(e: React.FormEvent<HTMLFormElement>) {
-        e.preventDefault();
-        if (!recipient || !amount) return alert("Please fill in all fields.");
-        writeContract({
-            address: GOLDTOKEN_CONTRACT_ADDRESS,
-            abi: GOLD_TOKEN_ABI,
-            functionName: 'transfer',
-            args: [recipient as `0x${string}`, parseEther(amount)],
-        });
-    }
-
-    const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
-
-    return (
-        <div className="card">
-            <h2>User Actions: Transfer GLD</h2>
-            <form onSubmit={submit}>
-                <input
-                    name="recipient"
-                    placeholder="Recipient Address (0x...)"
-                    value={recipient}
-                    onChange={(e) => setRecipient(e.target.value)}
-                    required
-                />
-                <input
-                    name="amount"
-                    placeholder="Amount to Transfer"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    required
-                />
-                <button type="submit" disabled={isPending}>
-                    {isPending ? 'Confirming...' : 'Transfer'}
-                </button>
-            </form>
-            {hash && <p>Transaction Hash: {hash.slice(0,10)}...</p>}
-            {isConfirming && <p>Waiting for confirmation...</p>}
-            {isConfirmed && <p>Transaction confirmed!</p>}
-        </div>
-    );
 }
 
 function CustodianActions() {
