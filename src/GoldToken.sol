@@ -30,19 +30,22 @@ contract GoldToken is ERC20, Ownable {
      * This function is called by the custodian after verifying a user's physical gold deposit.
      * @param to The address to mint the tokens to.
      * @param amount The amount of tokens to mint (in wei, 18 decimals).
-     */
-    function mint(address to, uint256 amount) public onlyOwner {
+    */
+    function mint(address to, uint256 amount) public onlyOwner() {
         _mint(to, amount);
     }
-
     /**
      * @dev Returns the latest price of gold in USD by querying the oracle contract.
      * @return The latest price with 8 decimals.
-     */
+    */
     function getLatestGoldPrice() public view returns (int256) {
         return goldPriceOracle.getLatestPrice();
     }
 
+    function withdraw(uint256 amount) public {
+        require(amount <= balanceOf(msg.sender), "GoldToken: Insufficient balance");
+        _burn(msg.sender, amount);
+    }
     /**
      * @dev Allows the owner to update the oracle contract address.
      * This adds flexibility, allowing the oracle logic to be upgraded separately.
